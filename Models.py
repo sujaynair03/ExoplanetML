@@ -1,3 +1,26 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import rcParams; rcParams["figure.dpi"] = 150
+from scipy.interpolate import interp1d
+from scipy.signal import find_peaks
+from ELCA_C import transit
+
+import os
+import pickle
+from sklearn import preprocessing
+from tensorflow.keras.layers import Input, Dense, Conv1D, AveragePooling1D, Concatenate, Flatten, Dropout, MaxPooling1D
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import SGD
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import matplotlib.patches as mpatches
+from transitleastsquares import transitleastsquares
+import pylightcurve_torch
+from pylightcurve_torch import TransitModule
+
+import pdb
+
 class CNN(nn.Module): #identical to original model - just in pt
     def __init__(self, rnn = False):
         super().__init__()
@@ -47,7 +70,7 @@ class CNN2(nn.Module):
         self.fc2 = nn.Linear(64, 32)
         self.fc3 = nn.Linear(32,8)
         self.fc4 = nn.Linear(8,1)
-        
+        nimages = 27.4*24*60 / 30
         self.time = np.linspace(0,27.4,int(nimages))
         self.param_prediction = nn.Linear(8, 3)
         
@@ -68,7 +91,7 @@ class CNN2(nn.Module):
             'ldc': [0.3, 0.01]}
         
 
-        self.tm = TransitModule(self.time, **prior).float()
+        self.tm = TransitModule(self.time, **self.prior).float()
         
     def forward(self, data, trueparams): 
         h = self.c1(data)
@@ -92,7 +115,7 @@ class CNN2(nn.Module):
         truereturnedprms = torch.stack([truepredRP, truepredARS, truepredP], -1) #saving for later
 
 #         timeminusprior = torch.FloatTensor(self.time-(0.5*predP)).unsqueeze(0).repeat(16, 1) original
-        timeminusprior = torch.FloatTensor(self.time).unsqueeze(0).repeat(16, 1)-(0.5*predP.unsqueeze(1).repeat(1, 1315)) #maybe use the other t0?? half predp?
+        timeminusprior = torch.FloatTensor(self.time).unsqueeze(0).repeat(16, 1)-(0.5*predP.unsqueeze(1).repeat(1, 1315)) 
         truetimeminusprior = torch.FloatTensor(self.time).unsqueeze(0).repeat(16, 1)-(0.5*truepredP.unsqueeze(1).repeat(1, 1315))
 
         phase_new = ((timeminusprior.T/predP)+predP*0.5).T %1

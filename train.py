@@ -1,4 +1,57 @@
-# reconstruction loss and other tests here
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import rcParams; rcParams["figure.dpi"] = 150
+from scipy.interpolate import interp1d
+from scipy.signal import find_peaks
+from ELCA_C import transit
+
+import os
+import pickle
+from sklearn import preprocessing
+from tensorflow.keras.layers import Input, Dense, Conv1D, AveragePooling1D, Concatenate, Flatten, Dropout, MaxPooling1D
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import SGD
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import matplotlib.patches as mpatches
+from transitleastsquares import transitleastsquares
+import pylightcurve_torch
+from pylightcurve_torch import TransitModule
+import pdb
+
+from Models import CNN2
+from Utils import genData
+from Utils import pn_rates
+from Utils import softclamp
+# data generation -train/test
+
+# train
+noise = 1/4
+tolerance = 0.25
+
+positives, negatives, l, trueparams = genData(1200, noise, tolerance, ptc=True)
+
+X = np.vstack([positives, negatives])
+trueparams = np.vstack([trueparams, trueparams])
+X = X.reshape((X.shape[0], X.shape[1], 1))
+y = np.hstack([np.ones(len(positives)), np.zeros(len(negatives))])
+
+# test
+noiseT = 1/4
+toleranceT = .25
+
+positivesT, negativesT, l, testparams = genData(1000, noiseT, toleranceT, ptc=True)
+
+Xt = np.vstack([positivesT, negativesT])
+testparams = np.vstack([testparams, testparams])
+Xt = Xt.reshape((Xt.shape[0], Xt.shape[1], 1))
+yt = np.hstack([np.ones(len(positivesT)), np.zeros(len(negativesT))])
+
+
+
+
+# training loop
 original = False #original true means no param prediction
 rnn = False #rnn true means yes sequence stuff
 nb_epoch = 100
@@ -13,7 +66,7 @@ else:
 optimizer = torch.optim.SGD(cnn.parameters(), lr=0.001, momentum=0.9) #adjust lr
 bce = nn.BCELoss() 
 
-
+count = 0
 
 for epoch in range(nb_epoch):
     rand_index = np.random.choice(X.shape[0], X.shape[0], replace=False)
@@ -23,6 +76,7 @@ for epoch in range(nb_epoch):
     losses = []
     accs = []
     errs = []
+    name = "epoch"
     for i in range(0, X.shape[0], batch_size): #might want to shuffle batches after each eepoch
         batch_X = torch.FloatTensor(X[i:(i+batch_size)]).permute(0, 2, 1)
         batch_y = torch.FloatTensor(y[i:(i+batch_size)])
@@ -52,7 +106,7 @@ for epoch in range(nb_epoch):
         losses.append(loss.cpu().detach().numpy())
         accs.append((((pred > 0.5) == batch_y)*1.0).mean().cpu().detach().numpy()) #maybe adjust this
     
-    
+    print("--------------------------------------------------------------------------")
     print(f"Epoch: {epoch}, train Loss: {np.mean(losses)}, train Accuracy: {np.mean(accs)}")#np.mean(losses), np.mean(accs))
 #     fn,fp,tn,tp = pn_rates(pred, batch_y)
 #     print(' FP:',fp)
@@ -64,8 +118,10 @@ for epoch in range(nb_epoch):
     print("params mean^2: " + str(((prms-batch_tp)**2).mean()))
     print("residual mean^2: " + str((res**2).mean()))
 #     print("param vals: ", prms)
-    plt.plot(fluxx[0].cpu().detach().numpy(), 'r.'); plt.plot(inputd[0,0].cpu().detach().numpy(), 'k.'); plt.plot(trueflux[0].cpu().detach().numpy(), 'g.'); plt.show()
-        
+    if count % 5 == 0:
+        plt.figure()
+        plt.plot(fluxx[0].cpu().detach().numpy(), 'r.'); plt.plot(inputd[0,0].cpu().detach().numpy(), 'k.'); plt.plot(trueflux[0].cpu().detach().numpy(), 'g.'); plt.savefig(fname = ('Plots/' + str(name + str(count)))); 
+    count+=1
     ################# test metrics
         
 #     pred_test = []
