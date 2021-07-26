@@ -134,8 +134,8 @@ class CNN2(nn.Module):
                        rp=truepredRP,
                        a=truepredARS,
                        P=truepredP,
-                       t0 = truepredP*0.5)
-
+                       t0 = truepredP*0.5) #could be a tm() issue?
+        # pdb.set_trace()
         delta = data - flux.unsqueeze(1).float() ##residuals
         truedelta = data - trueflux.unsqueeze(1).float()
 
@@ -147,7 +147,7 @@ class CNN2(nn.Module):
         h = self.drp(self.relu(self.fc1_res(h)))
         h = self.drp(self.relu(self.fc2_res(h)))
         h = self.drp(self.relu(self.fc3_res(h)))
-        h = self.sigm(self.fc4_res(h)) ## final prediction
+        h = self.sigm(self.fc4_res(h)) ## final prediction - linear function/relu on predicted params, sigm can cut off the data - transit param is more regression than classification
         return h, returnedprms, delta, flux, data, p_time_new2, trueflux
     
 class CNN3(nn.Module):

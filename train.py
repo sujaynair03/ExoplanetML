@@ -37,6 +37,7 @@ trueparams = np.vstack([trueparams, trueparams])
 X = X.reshape((X.shape[0], X.shape[1], 1))
 y = np.hstack([np.ones(len(positives)), np.zeros(len(negatives))])
 
+
 # test
 noiseT = 1/4
 toleranceT = .25
@@ -94,7 +95,7 @@ for epoch in range(nb_epoch):
 #             loss = (res**2).mean((1, 2))
 #             loss = loss * batch_y
 #             loss = loss.mean()
-            loss = ((prms-batch_tp)**2).mean()
+            loss = ((prms-batch_tp)**2).mean() 
     
         #((prms-batch_tp)**2).mean()
 #             print("params: " , prms[:3])
