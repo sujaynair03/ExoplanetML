@@ -21,7 +21,7 @@ from pylightcurve_torch import TransitModule
 
 import pdb
 
-def genData(size, noise, tolerance, TLS = False, ptc = False):
+def genData(size, noise, tolerance, TLS = False, ptc = False, fold=True):
 #     assert(False)
     nimages = 27.4*24*60 / 30
     time = np.linspace(0,27.4,int(nimages)) # [day]
@@ -45,11 +45,11 @@ def genData(size, noise, tolerance, TLS = False, ptc = False):
             'i':90,          # Inclination [deg] [90]
             'e':0,            # Eccentricity
             'w':0,          # Arg of periastron
-            't0':0.75,         # time of mid transit [0,1]
+            't0':np.random.uniform(0.0, 1.0), #0.75,         # time of mid transit [0,1]
             'method':'quad',
             'ldc': [0.3, 0.01]
             }
-            prior['t0'] = 0.5*prior['P'] #to be in middle of plot
+            # prior['t0'] = 0.5*prior['P'] #to be in middle of plot
             rpname = 'rp'
             pername = 'P'
             t0name = 't0'
@@ -63,27 +63,27 @@ def genData(size, noise, tolerance, TLS = False, ptc = False):
                 'u1': 0.3, 'u2': 0.01, # limb darkening (linear, quadratic)
                 'ecc':0,            # Eccentricity
                 'omega':0,          # Arg of periastron
-                'tmid':0.75         # time of mid transit [0,1]
+                'tmid':np.random.uniform(0.0, 1.0), #0.75         # time of mid transit [0,1]
             } 
-            prior['tmid'] = 0.5*prior['per']
+            # prior['tmid'] = 0.5*prior['per']
             rpname = 'rprs'
             pername = 'per'
             t0name = 'tmid'
             arsname = 'ars'
             
-        trueprms.append([prior[rpname], prior[arsname], prior[pername]]) # true params for later prediction
-        
+        trueprms.append([prior[rpname], prior[arsname], prior[pername], prior[t0name]]) # true params for later prediction
+
         phase = (time-prior[t0name] + 0.5*prior[pername])/prior[pername] % 1 # same as before
         phases.append(phase)
         n = (noise*np.random.random()+noise)* np.random.normal(0, prior[rpname]**2, len(time))
         
         if ptc: #if ptc use pylightcurvetorch transit function, else use standard one from before
             tm = TransitModule(time, **prior) 
-            flux = (tm()).squeeze().cpu().numpy() 
-#             flux = (tm() + n).squeeze().cpu().numpy() no noise for now
+            # flux = (tm()).squeeze().cpu().numpy() 
+            flux = (tm() + n).squeeze().cpu().numpy()
         else:
-            flux = transit(time, prior)
-#             flux = transit(time, prior) + n
+            # flux = transit(time, prior)
+            flux = transit(time, prior) + n
         
         
         if(TLS): #from previous study
@@ -97,9 +97,7 @@ def genData(size, noise, tolerance, TLS = False, ptc = False):
         fluxs.append(flux)
         
         fake_period = np.clip(np.random.uniform(prior[pername]-per_tolerance, prior[pername]+per_tolerance), 4.0, 7.0)
-
         fakeperiods.append(fake_period)
-        
         phase = (time-prior[t0name] + 0.5*fakeperiods[i])/fakeperiods[i] % 1
         negphases.append(phase)
         s_i = np.argsort(phase)
@@ -112,11 +110,21 @@ def genData(size, noise, tolerance, TLS = False, ptc = False):
 #     for i in range(0,len(sfluxs)):
 #         sfluxs[i] = preprocessing.scale(sfluxs[i])
 
+    # pdb.set_trace()
     negfluxsarr  = np.array(negfluxes)
+    trueprms = np.array(trueprms)
+    trueprms[:,0] = (trueprms[:,0] - 0.05)/(0.1 - 0.05)
+    trueprms[:,1] = (trueprms[:,1] - 12)/(16 - 12)
+    trueprms[:,2] = (trueprms[:,2] - 4)/(7 - 4)
+    trueprms[:,3] = (trueprms[:,3] - 0)/(1 - 0)
+    # pdb.set_trace()
+
 #     for i in range(0,len(negfluxsarr)):
 #         negfluxsarr[i] = preprocessing.scale(negfluxsarr[i])
-        
-    return sfluxs, negfluxsarr, TLSresults, np.array(trueprms) #return trueparams because model may use this in training
+    if fold:
+        return sfluxs, negfluxsarr, TLSresults, trueprms #return trueparams because model may use this in training
+    else:
+        return np.array(fluxs), None, TLSresults, trueprms
 
 
 
