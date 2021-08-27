@@ -5,8 +5,9 @@ from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 import sys
 sys.path.insert(1, '/Users/sujaynair/Documents/astroML')
-from ELCA_C import transit
+# from ELCA_C import transit
 
+import time
 import os
 import pickle
 from sklearn import preprocessing
@@ -17,10 +18,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.patches as mpatches
-from transitleastsquares import transitleastsquares
+# from transitleastsquares import transitleastsquares
 import pylightcurve_torch
 from pylightcurve_torch import TransitModule
 import pdb
+import math
 
 from Models import CNN2, CNN4
 from Utils import genData
@@ -67,8 +69,31 @@ else:
     Xt-=1
     Xt = Xt.reshape((Xt.shape[0], Xt.shape[1], 1))
 
+# truerprs = testparams[:,0] * (0.1 - 0.05) + 0.05
+# truears = testparams[:,1] * (16 - 12) + 12
+# trueper = testparams[:,2] * (7 - 4) + 4
+# truetmid = testparams[:,3] * (1 - 0) + 0
+# from transitleastsquares import transitleastsquares
+# Xt_tls = Xt+1
+# Xt_tls = Xt_tls.squeeze()
+# time = np.linspace(0,27.4,1315)
+# predperlist = []
+# predrprslist = []
+# for i in range(len(Xt)):
+#     model = transitleastsquares(time, Xt_tls[i])
+#     # pdb.set_trace()
+#     results = model.power(use_threads = 1)
+#     predper = results.period
+#     predperlist.append(predper)
+#     predrprs = math.sqrt(1-results.depth)
+#     predrprslist.append(predrprs)
+# perdifferences = abs(trueper-predperlist)
+# meanperdiff = perdifferences.mean()
+# rprsdifferences = abs(truerprs-predrprslist)
+# meanrprsdiff = rprsdifferences.mean()
 
-
+# print("mean difference for periods : ", meanperdiff)
+# print("mean difference for rprs : ", meanrprsdiff)
 
 # training loop
 rnn = False #rnn true means yes sequence stuff
@@ -76,11 +101,11 @@ nb_epoch = 1000
 batch_size = int(sys.argv[1])
 # cnn = make_cnn(1315)
 if mode == 0:
-    cnn = CNN(rnn)
+    cnn = CNN(rnn).cuda()
 elif mode == 1:
-    cnn = CNN2()
+    cnn = CNN2().cuda()
 elif mode == 2:
-    cnn = CNN4()
+    cnn = CNN4().cuda()
 
 
 optimizer = torch.optim.Adam(cnn.parameters(), lr=0.0001) #adjust lr
@@ -93,7 +118,8 @@ r = []
 p = []
 test_p = []
 test_r = []
-
+print(torch.cuda.is_available())
+print(torch.cuda.get_device_name(0))
 for epoch in range(nb_epoch):
     rand_index = np.random.choice(X.shape[0], X.shape[0], replace=False)
     X = X[rand_index]
@@ -106,17 +132,18 @@ for epoch in range(nb_epoch):
     name = "epoch"
     # name1 = "losscurve"
     for i in range(0, X.shape[0], batch_size): #might want to shuffle batches after each eepoch
-        batch_X = torch.FloatTensor(X[i:(i+batch_size)]).permute(0, 2, 1)
+        batch_X = torch.FloatTensor(X[i:(i+batch_size)]).permute(0, 2, 1).cuda()
         if mode != 2:
-            batch_y = torch.FloatTensor(y[i:(i+batch_size)])
-        batch_tp = torch.FloatTensor(trueparams[i:(i+batch_size)])
+            batch_y = torch.FloatTensor(y[i:(i+batch_size)]).cuda()
+        batch_tp = torch.FloatTensor(trueparams[i:(i+batch_size)]).cuda()
 #         print(batch_tp.shape)
+
         if mode == 2:
             _, prms, res, fluxx, inputd, _, trueflux = cnn(batch_X, batch_tp)
         else:
             pred, prms, res, fluxx, inputd, p_time, trueflux = cnn(batch_X, batch_tp)
             pred = pred.squeeze()
-        
+        # currenttime = time.time()
         if mode == 0:
             loss = bce(pred, batch_y)
         elif mode == 1:
@@ -127,7 +154,20 @@ for epoch in range(nb_epoch):
 #             loss = loss.mean()
             loss = ((prms-batch_tp)**2).mean()
         elif mode == 2:
-            err = (prms-batch_tp).abs().mean(0)
+
+            prms_scaled = prms*1
+            batch_tp_scaled = batch_tp*1
+            prms_scaled[:,0] = prms[:,0] * (0.1 - 0.05) + 0.05
+            prms_scaled[:,1] = prms[:,1] * (16 - 12) + 12
+            prms_scaled[:,2] = prms[:,2] * (7 - 4) + 4
+            prms_scaled[:,3] = prms[:,3] * (1 - 0) + 0
+
+            batch_tp_scaled[:,0] = batch_tp[:,0] * (0.1 - 0.05) + 0.05
+            batch_tp_scaled[:,1] = batch_tp[:,1] * (16 - 12) + 12
+            batch_tp_scaled[:,2] = batch_tp[:,2] * (7 - 4) + 4
+            batch_tp_scaled[:,3] = batch_tp[:,3] * (1 - 0) + 0
+
+            err = (prms_scaled-batch_tp_scaled).abs().mean(0)
             errs.append(err.cpu().detach().numpy())
             lossprm = (prms-batch_tp)
             residprm = (res**2).mean()
@@ -137,13 +177,15 @@ for epoch in range(nb_epoch):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        # aftertime = time.time()
+        # print(aftertime-currenttime)
         losses.append(loss.cpu().detach().numpy())
         if mode != 2:
             accs.append((((pred > 0.5) == batch_y)*1.0).mean().cpu().detach().numpy()) #maybe adjust this
     
     l.append(np.mean(losses))
-    p.append(((prms-batch_tp)**2).mean())
-    r.append((res**2).mean())
+    p.append(((prms-batch_tp)**2).mean().cpu().detach().numpy())
+    r.append((res**2).mean().cpu().detach().numpy())
     print("--------------------------------------------------------------------------")
     print(f"Epoch: {epoch}, train Loss: {np.mean(losses)}, train Accuracy: {np.mean(accs)}")#np.mean(losses), np.mean(accs))
 #     fn,fp,tn,tp = pn_rates(pred, batch_y)
@@ -161,18 +203,36 @@ for epoch in range(nb_epoch):
     with torch.no_grad():
         pred_test_prmz = []
         pred_test_res = []
+        pred_test_err = []
         for i in range(0, Xt.shape[0], batch_size):
-            batch_Xt = torch.FloatTensor(Xt[i:(i+batch_size)]).permute(0, 2, 1)
-            batch_tpt = torch.FloatTensor(testparams[i:(i+batch_size)])
+            batch_Xt = torch.FloatTensor(Xt[i:(i+batch_size)]).permute(0, 2, 1).cuda()
+            batch_tpt = torch.FloatTensor(testparams[i:(i+batch_size)]).cuda()
             _, prmz, res_t, flux_t, input_d_t, _, true_test = cnn(batch_Xt, batch_tpt)
             if mode == 2:
                 pred_test_prmz.append(((prmz - batch_tpt)**2).mean().cpu().detach().numpy())
                 pred_test_res.append((res_t**2).mean().cpu().detach().numpy())
+                prms_scaled = prmz
+                batch_tp_scaled = batch_tpt
+                prms_scaled[:,0] = prmz[:,0] * (0.1 - 0.05) + 0.05
+                prms_scaled[:,1] = prmz[:,1] * (16 - 12) + 12
+                prms_scaled[:,2] = prmz[:,2] * (7 - 4) + 4
+                prms_scaled[:,3] = prmz[:,3] * (1 - 0) + 0
+
+                batch_tp_scaled[:,0] = batch_tpt[:,0] * (0.1 - 0.05) + 0.05
+                batch_tp_scaled[:,1] = batch_tpt[:,1] * (16 - 12) + 12
+                batch_tp_scaled[:,2] = batch_tpt[:,2] * (7 - 4) + 4
+                batch_tp_scaled[:,3] = batch_tpt[:,3] * (1 - 0) + 0
+
+                err = (prms_scaled-batch_tp_scaled).abs().mean(0)
+                pred_test_err.append(err.cpu().detach().numpy())
         # if mode == 2:
         #     pred_test_prmz = np.concatenate(pred_test_prmz)
         #     pred_test_res = np.concatenate(pred_test_res)
         test_p.append(np.mean(pred_test_prmz))
         test_r.append(np.mean(pred_test_res))
+
+        pred_test_err = np.stack(pred_test_err)
+        print("test Errors: ", pred_test_err.mean(0))
     # plt.figure()
     # pdb.set_trace()
     # plt.plot(losses); plt.savefig(fname = ('Loss_Curves/' + str(name1 + str(count))))
@@ -181,7 +241,7 @@ for epoch in range(nb_epoch):
         plt.plot(fluxx[0].cpu().detach().numpy(), 'r.')
         plt.plot(inputd[0,0].cpu().detach().numpy(), 'k.')
         plt.plot(trueflux[0].cpu().detach().numpy(), 'g.')
-        plt.savefig(fname = ('Plots/' + str(name + str(count))))
+        plt.savefig(fname = ('WindowsPlots/' + str(name + str(count))))
         plt.close()
 
         plt.figure()
@@ -189,23 +249,23 @@ for epoch in range(nb_epoch):
         plt.plot(flux_t[randt].cpu().detach().numpy(), 'r.')
         plt.plot(input_d_t[randt,0].cpu().detach().numpy(), 'k.')
         plt.plot(true_test[randt].cpu().detach().numpy(), 'g.')
-        plt.savefig(fname = ('Plots/test_' + str(name + str(count))))
+        plt.savefig(fname = ('WindowsPlots/test_' + str(name + str(count))))
         plt.close()
 
         plt.figure()
-        plt.plot(l[5:]); plt.savefig(fname = ('Plots/' + 'losscurve'))
+        plt.plot(l[5:]); plt.savefig(fname = ('WindowsPlots/' + 'losscurve'))
         plt.close()
         plt.figure()
-        plt.plot(p[5:]); plt.savefig(fname = ('Plots/' + 'paramcurve'))
+        plt.plot(p[5:]); plt.savefig(fname = ('WindowsPlots/' + 'paramcurve'))
         plt.close()
         plt.figure()
-        plt.plot(r[5:]); plt.savefig(fname = ('Plots/' + 'residcurve'))
+        plt.plot(r[5:]); plt.savefig(fname = ('WindowsPlots/' + 'residcurve'))
         plt.close()
         plt.figure()
-        plt.plot(test_p[5:]); plt.savefig(fname = ('Plots/' + 'test_paramcurve'))
+        plt.plot(test_p[5:]); plt.savefig(fname = ('WindowsPlots/' + 'test_paramcurve'))
         plt.close()
         plt.figure()
-        plt.plot(test_r[5:]); plt.savefig(fname = ('Plots/' + 'test_residcurve'))
+        plt.plot(test_r[5:]); plt.savefig(fname = ('WindowsPlots/' + 'test_residcurve'))
         plt.close()
     count+=1
 # pdb.set_trace()

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams; rcParams["figure.dpi"] = 150
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
-from ELCA_C import transit
+# from ELCA_C import transit
 
 import os
 import pickle
