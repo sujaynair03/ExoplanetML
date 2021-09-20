@@ -1,0 +1,11 @@
+TLS:
+mean absolute err for per = 0.003, rp/rs = 0.005
+---
+Us initially:
+mean absolute err for per = 0.29, rp/rs = 0.005
+---
+Us now with 10,000 train and 1000 test (more data)
+mean absolute err for per = 0.16, rp/rs = 0.0044
+---
+Us 10000 train, 1000 test, lstm layer
+mean absolute err for per = 0.14, rp/rs = 0.004

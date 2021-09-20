@@ -217,13 +217,20 @@ class CNN4(nn.Module):
         
 
         self.tm = TransitModule(self.time, **self.prior).float()
+        self.lstm = nn.LSTM(8,8)
         
     def forward(self, data, trueparams): 
         h = self.c1(data)
         h = self.pool(h)
         h = self.c2(h)
         h = self.pool(h)
-        h = h.view(data.shape[0], -1)
+
+        h = h.permute(2,0,1)
+        h, _ = self.lstm(h)
+        h = h.permute(1,2,0)
+        h = h.reshape(data.shape[0], -1)
+        
+        # h = h.view(data.shape[0], -1)
         h = self.drp(self.relu(self.fc1(h)))
         h = self.drp(self.relu(self.fc2(h)))
         h = self.drp(self.relu(self.fc3(h)))

@@ -32,6 +32,7 @@ import sys
 # data generation -train/test
 
 ### FLAGS
+file_name = str(sys.argv[3])
 mode = int(sys.argv[2]) #False #original true means no param prediction # 0 - just classification, 1 - classification + regression, 2 - just regression
 if mode == 0:
     fold = 1
@@ -43,7 +44,7 @@ elif mode == 2:
 # train
 noise = 1/4
 tolerance = 0.25
-positives, negatives, l, trueparams = genData(1000, noise, tolerance, ptc=True, fold = fold)
+positives, negatives, l, trueparams = genData(10000, noise, tolerance, ptc=True, fold = fold)
 if fold:
     X = np.vstack([positives, negatives])
     trueparams = np.vstack([trueparams, trueparams])
@@ -58,7 +59,7 @@ else:
 # test
 noiseT = 1/4
 toleranceT = .25
-positivesT, negativesT, l, testparams = genData(200, noiseT, toleranceT, ptc=True, fold = fold)
+positivesT, negativesT, l, testparams = genData(1000, noiseT, toleranceT, ptc=True, fold = fold)
 if fold:
     Xt = np.vstack([positivesT, negativesT])
     testparams = np.vstack([testparams, testparams])
@@ -241,7 +242,7 @@ for epoch in range(nb_epoch):
         plt.plot(fluxx[0].cpu().detach().numpy(), 'r.')
         plt.plot(inputd[0,0].cpu().detach().numpy(), 'k.')
         plt.plot(trueflux[0].cpu().detach().numpy(), 'g.')
-        plt.savefig(fname = ('WindowsPlots/' + str(name + str(count))))
+        plt.savefig(fname = (str(file_name)+ '/' + str(name + str(count))))
         plt.close()
 
         plt.figure()
@@ -249,25 +250,29 @@ for epoch in range(nb_epoch):
         plt.plot(flux_t[randt].cpu().detach().numpy(), 'r.')
         plt.plot(input_d_t[randt,0].cpu().detach().numpy(), 'k.')
         plt.plot(true_test[randt].cpu().detach().numpy(), 'g.')
-        plt.savefig(fname = ('WindowsPlots/test_' + str(name + str(count))))
+        plt.savefig(fname = (str(file_name) + '/test_' + str(name + str(count))))
         plt.close()
 
         plt.figure()
-        plt.plot(l[5:]); plt.savefig(fname = ('WindowsPlots/' + 'losscurve'))
+        plt.plot(l[5:]); plt.savefig(fname = (str(file_name) + '/losscurve'))
         plt.close()
         plt.figure()
-        plt.plot(p[5:]); plt.savefig(fname = ('WindowsPlots/' + 'paramcurve'))
+        plt.plot(p[5:]); plt.savefig(fname = (str(file_name) + '/paramcurve'))
         plt.close()
         plt.figure()
-        plt.plot(r[5:]); plt.savefig(fname = ('WindowsPlots/' + 'residcurve'))
+        plt.plot(r[5:]); plt.savefig(fname = (str(file_name) + '/residcurve'))
         plt.close()
         plt.figure()
-        plt.plot(test_p[5:]); plt.savefig(fname = ('WindowsPlots/' + 'test_paramcurve'))
+        plt.plot(test_p[5:]); plt.savefig(fname = (str(file_name) + '/test_paramcurve'))
         plt.close()
         plt.figure()
-        plt.plot(test_r[5:]); plt.savefig(fname = ('WindowsPlots/' + 'test_residcurve'))
+        plt.plot(test_r[5:]); plt.savefig(fname = (str(file_name) + '/test_residcurve'))
         plt.close()
     count+=1
+
+# print("mean difference for periods : ", meanperdiff)
+# print("mean difference for rprs : ", meanrprsdiff)
+
 # pdb.set_trace()
 
 
